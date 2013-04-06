@@ -49,6 +49,7 @@ exports.testStreamingMethodWithBufferResets = function(test) {
         if(nextExpected == 1000) {
             test.equal(res, undefined);
             test.equal(more, false);
+            rpcServer.close();
             test.done();
         } else {
             test.equal(res, nextExpected);

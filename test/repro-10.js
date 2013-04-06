@@ -21,38 +21,29 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-//Proxies event from one object to another
-//from : EventEmitter
-//      The object to proxy events from
-//to : EventEmitter
-//      The object to proxy events to
-function eventProxy(from, to, name) {
-    from.on(name, function() {
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(name);
-        to.emit.apply(to, args);
-    });
-}
+/* This test reproduces issue 10 (server is garbage-collected if no client connection
+    happens before some time). This bug was happening with zmq<2.2.0. */
+var zerorpc = require(".."),
+    _ = require("underscore");
 
-//Gets the current time in milliseconds since epoch
-//return : Number
-function curTime() {
-    return Date.now();
-}
+var rpcServer = new zerorpc.Server({
+    helloWorld: function(reply) {
+        reply(null, "Hello World!")
+    }
+});
 
-//Creates an error object
-//name : String
-//      The error name
-//message : String
-//      The error message
-//traceback : String
-//      The exception stack trace as a string
-//return : Object
-//      An error object
-function createErrorResponse(name, message, traceback) {
-    return { name: name, message: message, traceback: traceback };
-}
+rpcServer.bind("tcp://0.0.0.0:4247");
 
-exports.eventProxy = eventProxy;
-exports.curTime = curTime;
-exports.createErrorResponse = createErrorResponse;
+var rpcClient = new zerorpc.Client({ timeout: 5 });
+exports.testRepro10 = function(test) {
+    setTimeout(function() {
+        rpcClient.connect("tcp://localhost:4247");
+        rpcClient.invoke("helloWorld", function(error, res, more) {
+            test.equal(error, null);
+            test.equal(res, "Hello World!");
+            test.equal(more, false);
+            rpcServer.close();
+            test.done();
+        });
+    }, 10000);
+};
